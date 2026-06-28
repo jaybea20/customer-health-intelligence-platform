@@ -1,30 +1,58 @@
 import duckdb
 from pathlib import Path
 
-DATA_PATH = Path("data/customers.csv")
+DATA_DIR = Path("data")
 SQL_PATH = Path("sql/customer_health_features.sql")
-OUTPUT_PATH = Path("output/customer_health_features.csv")
+OUTPUT_DIR = Path("output")
 
-OUTPUT_PATH.parent.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-conn = duckdb.connect("output/customer_health.duckdb")
+conn = duckdb.connect(OUTPUT_DIR / "customer_health.duckdb")
 
-conn.execute(f"""
-CREATE OR REPLACE TABLE customers AS
-SELECT *
-FROM read_csv_auto('{DATA_PATH.as_posix()}');
-""")
+# -------------------------
+# Load CSVs into DuckDB
+# -------------------------
+
+tables = {
+    "customers": "customers.csv",
+    "product_usage": "product_usage.csv",
+    "support_cases": "support_cases.csv",
+    "customer_success": "customer_success.csv"
+}
+
+for table_name, file_name in tables.items():
+
+    csv_path = DATA_DIR / file_name
+
+    conn.execute(f"""
+        CREATE OR REPLACE TABLE {table_name} AS
+        SELECT *
+        FROM read_csv_auto('{csv_path.as_posix()}');
+    """)
+
+print("Loaded tables:")
+for table in tables:
+    print(f" - {table}")
+
+# -------------------------
+# Execute SQL
+# -------------------------
 
 sql = SQL_PATH.read_text()
+
 conn.execute(sql)
 
 features = conn.execute("""
 SELECT *
-FROM customer_health_features;
+FROM customer_health_features
 """).df()
 
-features.to_csv(OUTPUT_PATH, index=False)
+output_file = OUTPUT_DIR / "customer_health_features.csv"
 
-print(f"Created {OUTPUT_PATH}")
-print(features.head())
+features.to_csv(output_file, index=False)
+
+print()
+print(f"Created {output_file}")
 print(f"Rows: {len(features)}")
+print()
+print(features.head())
